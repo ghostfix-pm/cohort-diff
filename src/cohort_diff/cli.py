@@ -1,0 +1,70 @@
+"""Command-line interface: ``cohort-diff <command> --help``."""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+from cohort_diff import engine, registry
+
+
+def _list(args: argparse.Namespace) -> None:
+    for d in registry.builtin().values():
+        if args.condition and d.condition != args.condition:
+            continue
+        print(f"{d.name:<16} {d.condition:<12} {d.description}")
+
+
+def _run(args: argparse.Namespace) -> None:
+    con = engine.connect(args.data)
+    ids = sorted(engine.run(con, registry.load(args.definition)))
+    out = "\n".join(["hadm_id", *map(str, ids)]) + "\n"
+    if args.out:
+        Path(args.out).write_text(out)
+        print(f"{len(ids)} admissions -> {args.out}")
+    else:
+        sys.stdout.write(out)
+
+
+def _synth(args: argparse.Namespace) -> None:
+    from cohort_diff.synth import SynthConfig, generate
+
+    hosp = Path(args.out) / "hosp"
+    hosp.mkdir(parents=True, exist_ok=True)
+    for name, frame in generate(SynthConfig(n_patients=args.patients, seed=args.seed)).items():
+        frame.to_csv(hosp / f"{name}.csv.gz", index=False)
+    print(f"wrote synthetic MIMIC-shaped tables to {hosp} (synthetic data, not real patients)")
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="cohort-diff", description=__doc__)
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p = sub.add_parser("list", help="show built-in definitions")
+    p.add_argument("--condition")
+    p.set_defaults(func=_list)
+
+    p = sub.add_parser("run", help="admissions meeting one definition")
+    p.add_argument("definition", help="built-in name or path to a .sql file")
+    p.add_argument("--data", required=True)
+    p.add_argument("--out")
+    p.set_defaults(func=_run)
+
+    p = sub.add_parser("synth", help="write synthetic MIMIC-shaped tables")
+    p.add_argument("--out", required=True)
+    p.add_argument("--patients", type=int, default=2000)
+    p.add_argument("--seed", type=int, default=0)
+    p.set_defaults(func=_synth)
+
+    args = parser.parse_args(argv)
+    try:
+        args.func(args)
+    except (FileNotFoundError, KeyError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
