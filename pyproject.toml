@@ -1,0 +1,48 @@
+[project]
+name = "cohort-diff"
+version = "0.1.0"
+description = "How different are 'the same' EHR cohorts? Run published definitions side by side on MIMIC-IV and diff them."
+readme = "README.md"
+authors = [{ name = "Eric Yang", email = "159638721+yangpings@users.noreply.github.com" }]
+license = "MIT"
+requires-python = ">=3.11"
+dependencies = [
+    "duckdb>=1.0",
+    "numpy>=1.26",
+    "pandas>=2.1",
+]
+
+[project.scripts]
+cohort-diff = "cohort_diff.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-cov>=5",
+    "hypothesis>=6.100",
+    "mypy>=1.10",
+    "ruff>=0.5",
+]
+
+[build-system]
+requires = ["uv_build>=0.13.6,<0.14.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N", "SIM", "RUF"]
+
+[tool.mypy]
+strict = true
+python_version = "3.11"
+
+[[tool.mypy.overrides]]
+module = ["pandas.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "-q --cov=cohort_diff --cov-report=term-missing"
+testpaths = ["tests"]
