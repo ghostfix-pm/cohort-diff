@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from cohort_diff import engine, registry
+from cohort_diff import compare, engine, registry
 
 
 def _list(args: argparse.Namespace) -> None:
@@ -25,6 +25,31 @@ def _run(args: argparse.Namespace) -> None:
         print(f"{len(ids)} admissions -> {args.out}")
     else:
         sys.stdout.write(out)
+
+
+def _compare(args: argparse.Namespace) -> None:
+    defs = [registry.load(n) for n in args.definitions]
+    if args.condition:
+        defs = [d for d in registry.builtin().values() if d.condition == args.condition]
+    if len(defs) < 2:
+        raise ValueError("compare needs at least two definitions")
+    con = engine.connect(args.data)
+    cohorts = {d.name: engine.run(con, d) for d in defs}
+    admissions = engine.admissions_frame(con)
+    uncertainty = (
+        compare.bootstrap_pairs(cohorts, admissions, n_boot=args.bootstrap, seed=args.seed)
+        if args.bootstrap > 0
+        else None
+    )
+    report = compare.to_markdown(
+        compare.overlap_table(cohorts),
+        compare.describe(cohorts, admissions),
+        title=f"cohort-diff: {', '.join(cohorts)}",
+        uncertainty=uncertainty,
+    )
+    if args.out:
+        Path(args.out).write_text(report)
+    print(report)
 
 
 def _synth(args: argparse.Namespace) -> None:
@@ -50,6 +75,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--data", required=True)
     p.add_argument("--out")
     p.set_defaults(func=_run)
+
+    p = sub.add_parser("compare", help="overlap and downstream differences between definitions")
+    p.add_argument("definitions", nargs="*", help="two or more names or .sql paths")
+    p.add_argument("--condition", help="compare every built-in definition of this condition")
+    p.add_argument("--data", required=True)
+    p.add_argument("--out", help="write the markdown report here")
+    p.add_argument("--bootstrap", type=int, default=1000, help="resamples (0 = skip)")
+    p.add_argument("--seed", type=int, default=0)
+    p.set_defaults(func=_compare)
 
     p = sub.add_parser("synth", help="write synthetic MIMIC-shaped tables")
     p.add_argument("--out", required=True)
