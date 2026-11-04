@@ -15,6 +15,10 @@ dependencies = [
 [project.scripts]
 cohort-diff = "cohort_diff.cli:main"
 
+[project.urls]
+Repository = "https://github.com/yangpings/cohort-diff"
+Issues = "https://github.com/yangpings/cohort-diff/issues"
+
 [dependency-groups]
 dev = [
     "pytest>=8",
