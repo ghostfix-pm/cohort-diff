@@ -43,6 +43,7 @@ The demo shares the full MIMIC-IV schema, so the same definitions run on full MI
 | `aki_icd` | AKI | ICD-10 N17.* or ICD-9 584.* on the admission |
 | `aki_kdigo_48h` | AKI | Creatinine rises ≥ 0.3 mg/dL within 48 h (KDIGO 2012, criterion 1) |
 | `aki_kdigo_7d` | AKI | Creatinine ≥ 1.5 × the lowest value in the prior 7 days (KDIGO 2012, criterion 2) |
+| `aki_kdigo_mimiccode` | AKI | **Published:** KDIGO creatinine stage ≥ 1 as implemented in MIT-LCP mimic-code, ICU-anchored (results from 7 days before ICU admission to ICU discharge; ≥ lowest in 48 h + 0.3 or ≥ 1.5 × lowest in 7 days; itemid 50912, values ≤ 150, same-time results averaged, no rounding) |
 | `dm_icd` | Diabetes | ICD-10 E10/E11/E13/E14 or ICD-9 250.* |
 | `dm_hba1c` | Diabetes | Any HbA1c ≥ 6.5% during the admission |
 | `dm_meds` | Diabetes | Any glucose-lowering medication |
@@ -100,6 +101,7 @@ Bold: the interval excludes 1, so the two definitions disagree about the mortali
 | aki_icd | 70 | 25.5% | 15.7% | 9.37 [2.88, 30.51] |
 | aki_kdigo_48h | 69 | 25.1% | 15.9% | 9.58 [2.94, 31.20] |
 | aki_kdigo_7d | 53 | 19.3% | 20.8% | 14.27 [4.34, 46.97] |
+| aki_kdigo_mimiccode | 44 | 16.0% | 25.0% | 18.92 [5.69, 62.88] |
 | dm_icd | 111 | 40.4% | 4.5% | 0.73 [0.24, 2.19] |
 | dm_hba1c | 17 | 6.2% | 0.0% | 0.45 [0.03, 7.82] (no deaths; zero-cell correction) |
 | dm_meds | 135 | 49.1% | 5.9% | 1.20 [0.42, 3.40] |
@@ -111,6 +113,9 @@ Bold: the interval excludes 1, so the two definitions disagree about the mortali
 | aki_icd vs aki_kdigo_48h | 0.376 [0.263, 0.494] | 0.98 [0.25, 3.23] |
 | aki_icd vs aki_kdigo_7d | 0.309 [0.189, 0.440] | 0.66 [0.17, 2.48] |
 | aki_kdigo_48h vs aki_kdigo_7d | 0.564 [0.447, 0.679] | 0.67 [0.20, 2.35] |
+| aki_icd vs aki_kdigo_mimiccode | 0.326 [0.221, 0.449] | 0.50 [0.13, 1.80] |
+| aki_kdigo_48h vs aki_kdigo_mimiccode | 0.614 [0.475, 0.759] | **0.51 [0.36, 0.71]** |
+| aki_kdigo_7d vs aki_kdigo_mimiccode | 0.492 [0.387, 0.611] | 0.75 [0.22, 2.59] |
 | dm_hba1c vs dm_icd | 0.113 [0.071, 0.171] | 0.62 [0.17, 5.56] (zero-cell) |
 | dm_hba1c vs dm_meds | 0.126 [0.079, 0.176] | 0.38 [0.09, 1.91] (zero-cell) |
 | dm_icd vs dm_meds | 0.608 [0.461, 0.715] | 0.61 [0.15, 1.51] |
@@ -119,7 +124,8 @@ Bold: the interval excludes 1, so the two definitions disagree about the mortali
 - **Real definitions also select different patients.** The AKI definitions have similar prevalence (19–25%) but share only 31–56% of their combined admissions. Diabetes by HbA1c ≥ 6.5% (6% of admissions) overlaps the code and medication definitions at Jaccard 0.11–0.13.
 - **The medication phenotype captures the most** (49% of admissions vs 40% by codes), consistent with insulin given for stress hyperglycemia; every HbA1c-defined admission is also in the medication cohort.
 - **KDIGO-48h flags 25% of demo admissions, not the 78% seen on synthetic data**, so the synthetic over-capture came from the generator's frequent, noisy creatinine, not from the rule itself.
-- **No disagreement in the mortality association can be shown at this size.** The AKI ORs range from 9.4 to 14.3 and the diabetes ORs from 0.45 to 1.20, but every ratio interval includes 1 and some are 20-fold wide.
+- **Anchoring to the ICU changes the cohort and the answer.** The published mimic-code KDIGO definition flags 44 admissions (16%) against 69 (25%) for the same creatinine rule over the whole hospital stay; 43 of its 44 are in the hospital-wide cohort. Its members are sicker (mortality 25% vs 16%), and the ratio of mortality ORs, 0.51 [0.36, 0.71], is the one demo interval that excludes 1. The cohorts are nested, which keeps the paired interval narrow; with 100 patients this shows how much the anchoring choice matters, not a real-world effect size.
+- **Otherwise, no disagreement in the mortality association can be shown at this size.** The other AKI ORs range from 9.4 to 14.3 and the diabetes ORs from 0.45 to 1.20, and their ratio intervals include 1, some 20-fold wide.
 
 With 100 patients, cohorts are small and intervals wide; these numbers show the tool runs on real data, not how much definitions disagree in practice.
 
@@ -137,18 +143,19 @@ Not started. Planned on branch `cohort-diff-llm` after v0.1.0: pass rates of LLM
 
 ### Correctness
 
-27 tests pass with 99% line coverage on Python 3.11–3.13 (CI). Two deliberate breaks show what each kind of test catches:
+34 tests pass with 99% line coverage on Python 3.11–3.13 (CI). Two deliberate breaks show what each kind of test catches:
 
 | Deliberate break | Caught by | Not caught by |
 | --- | --- | --- |
 | Remove the rounding from the KDIGO 0.3 mg/dL comparison in both the SQL and the oracle | The hand-picked boundary test (0.9 → 1.2 and 1.1 → 1.4 missed) | Every SQL-vs-oracle test, because both shared the bug |
 | KDIGO window 48 h → 24 h | SQL vs oracle on synthetic data, and the Hypothesis property test (shrunk to creatinine 1.0 then 2.0 mg/dL, 25 hours apart) | (nothing missed) |
+| mimic-code KDIGO without the ICU-discharge bound | SQL vs oracle on synthetic data, the hand-made ICU-window test, and the Hypothesis property test (shrunk to an ICU stay from hour 0 to 6, creatinine 0.5 then 1.0 at hour 7) | (nothing missed) |
 
 ## Discussion
 
 On synthetic data, where the structure is known, definitions of the same condition overlap little when they use different sources (codes vs labs, Jaccard 0.09–0.16; H1), and four of six pairs disagree about the mortality association beyond sampling noise (ratio intervals excluding 1; H3). High overlap does not guarantee agreement: the two KDIGO rules share 88% of admissions but their ORs differ about threefold.
 
-The open demo shows the same pattern in membership on real data: AKI definitions with almost identical prevalence share at most 56% of their admissions, and diabetes by HbA1c overlaps the other definitions at about 0.12 (H1). The medication phenotype captures the most admissions, as expected (H2). For AKI, H2 was not supported on the demo: the lab rule flagged the same share as the codes (25%), and the synthetic data's 78% came from the generator. Whether the mortality association itself changes with the definition (H3) cannot be tested with 100 patients: every interval for the ratio of ORs includes 1. Readmission definitions exclude deaths by construction, so they cannot answer a mortality question at all (H4).
+The open demo shows the same pattern in membership on real data: AKI definitions with almost identical prevalence share at most 56% of their admissions, and diabetes by HbA1c overlaps the other definitions at about 0.12 (H1). The medication phenotype captures the most admissions, as expected (H2). For AKI, H2 was not supported on the demo: the lab rule flagged the same share as the codes (25%), and the synthetic data's 78% came from the generator. Whether the mortality association itself changes with the definition (H3) can mostly not be tested with 100 patients: every ratio interval among the textbook definitions includes 1. The exception is a published one: the mimic-code KDIGO definition, anchored to ICU stays, gives a mortality OR about half that of the hospital-wide rule (ratio 0.51 [0.36, 0.71]). Readmission definitions exclude deaths by construction, so they cannot answer a mortality question at all (H4).
 
 **Strengths.** Definitions are versioned, cited SQL rather than prose; each is checked against an independent implementation and by property tests; known-structure validation on synthetic data; installable with `pip`; reproducible by anyone from open data, a lock file and CI on Python 3.11–3.13.
 
@@ -171,6 +178,7 @@ What went wrong while building this, and what changed as a result. Analysis prob
 | A creatinine rise of exactly 0.3 mg/dL can be missed: in floating point, 1.2 − 0.9 = 0.29999999999999993 | KDIGO's 0.3 mg/dL threshold is clinically exact; a naive `>= 0.3` silently drops true AKI cases | The SQL and the oracle round the difference to 6 decimals. Removing the rounding from *both* left every SQL-vs-oracle test green (shared bug); only the hand-picked boundary test failed, on 0.9 → 1.2 and 1.1 → 1.4 (0.7 → 1.0 happens to round correctly) |
 | KDIGO-48h flagged 78% of synthetic admissions but 25% of demo admissions | A planted generator artifact (creatinine every 12 h with SD 0.3 mg/dL noise) looked like a property of the rule | Reported both; the synthetic over-capture is attributed to the generator, and synthetic overlaps are used only to validate the tool |
 | `dm_hba1c` has no deaths on the demo (17 admissions) | Its odds ratio and every ratio involving it come only from the 0.5 zero-cell correction | Flagged as zero-cell in the Results tables and not interpreted |
+| mimic-code compares `creat >= baseline + 0.3` without rounding, so a true 0.3 mg/dL rise from 1.1 to 1.4 is missed (1.1 + 0.3 = 1.4000000000000001), while 0.9 → 1.2 is caught | A faithful reproduction of a published definition must keep its choices, including ones you'd make differently | Implemented as the source states and pinned by a test that expects the miss; the built-in `aki_kdigo_48h` rounds and catches all three cases. The difference is documented in the SQL header |
 | A wrong time window (24 h instead of KDIGO's 48 h) still produces a plausible-looking cohort | Window edges are where cohort SQL is most often wrong, and a smaller cohort doesn't look broken | Deliberately changing the window to 24 h failed two tests: SQL vs oracle on synthetic data (admissions missing from the SQL cohort), and the Hypothesis property test, which shrank the failure to the minimal case: creatinine 1.0 then 2.0 mg/dL, 25 hours apart |
 
 ### Engineering
@@ -179,6 +187,7 @@ What went wrong while building this, and what changed as a result. Analysis prob
 | --- | --- | --- | --- |
 | Setup | The parent lab repository saw the whole Level 1 folder (both projects and the MIMIC-IV demo data) as untracked files | The parent's `.gitignore` had no rule for that folder, although earlier notes said it did | Added the folder to the parent's `.gitignore` before any commit; nothing had been committed. Lesson: verify ignore rules with `git check-ignore -v` and `git status`, not from notes |
 | CLI | The Part 5 commit had 2 files instead of 3: the CI workflow still lacked the release job | One of three files to replace was skipped; the commit itself succeeded, so nothing looked wrong | Caught by `git show --stat HEAD` before pushing; replaced the workflow and folded it in with `git commit --amend`. Lesson: compare the commit's file list with the list you expected before `git push` |
+| Release | Every CI job warned that Node.js 20 is deprecated | `actions/checkout@v4` and `astral-sh/setup-uv@v5` target Node.js 20, which GitHub is retiring | Warnings only (the TestPyPI rehearsal published). Bumped to `checkout@v5` and `setup-uv@v7` in the release commit, as in ehr-asof. Lesson: read CI annotations even when jobs are green |
 
 ## Conclusions
 
