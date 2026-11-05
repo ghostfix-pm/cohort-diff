@@ -19,6 +19,7 @@
 -- Assumed: window edges are inclusive: the baseline window includes exactly 180 and exactly 7 days
 --   before intime, and a gap of exactly 48 h counts for the 48 h rule.
 -- Assumed: creatinine values have no upper plausibility limit.
+-- Assumed: creatinine values <= 0 are dropped (physically impossible; the paper doesn't say).
 -- Assumed: any gender other than 'F' uses the MDRD formula without the 0.742 factor.
 WITH first_stay AS (
     SELECT subject_id, hadm_id, intime
@@ -39,7 +40,7 @@ adult_stay AS (
 cr AS (
     SELECT subject_id, charttime, valuenum
     FROM labevents
-    WHERE itemid = 50912 AND valuenum IS NOT NULL
+    WHERE itemid = 50912 AND valuenum > 0
 ),
 pre_icu AS (
     SELECT s.subject_id, avg(c.valuenum) AS mean_creat
