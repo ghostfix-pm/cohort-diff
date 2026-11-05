@@ -44,6 +44,7 @@ The demo shares the full MIMIC-IV schema, so the same definitions run on full MI
 | `aki_kdigo_48h` | AKI | Creatinine rises ≥ 0.3 mg/dL within 48 h (KDIGO 2012, criterion 1) |
 | `aki_kdigo_7d` | AKI | Creatinine ≥ 1.5 × the lowest value in the prior 7 days (KDIGO 2012, criterion 2) |
 | `aki_kdigo_mimiccode` | AKI | **Published:** KDIGO creatinine stage ≥ 1 as implemented in MIT-LCP mimic-code, ICU-anchored (results from 7 days before ICU admission to ICU discharge; ≥ lowest in 48 h + 0.3 or ≥ 1.5 × lowest in 7 days; itemid 50912, values ≤ 150, same-time results averaged, no rounding) |
+| `aki_rahimi2023_b3` | AKI | **Published:** Kamel Rahimi et al. 2023, Baseline sCr 3: new AKI on ICU day 2 or 3 (≥ 0.3 mg/dL within 48 h or ≥ 1.5 × baseline), baseline = mean creatinine 180 to 7 days before ICU admission, else MDRD back-calculation (eGFR 75, exponent −0.887 as printed); first ICU stay of adults with creatinine on days 1–3; day-1 AKI excluded. Written by Claude Code from a spec and failing tests, checked against an independent answer key |
 | `dm_icd` | Diabetes | ICD-10 E10/E11/E13/E14 or ICD-9 250.* |
 | `dm_hba1c` | Diabetes | Any HbA1c ≥ 6.5% during the admission |
 | `dm_meds` | Diabetes | Any glucose-lowering medication |
@@ -102,6 +103,7 @@ Bold: the interval excludes 1, so the two definitions disagree about the mortali
 | aki_kdigo_48h | 69 | 25.1% | 15.9% | 9.58 [2.94, 31.20] |
 | aki_kdigo_7d | 53 | 19.3% | 20.8% | 14.27 [4.34, 46.97] |
 | aki_kdigo_mimiccode | 44 | 16.0% | 25.0% | 18.92 [5.69, 62.88] |
+| aki_rahimi2023_b3 | 15 | 5.5% | 6.7% | 1.26 [0.15, 10.24] (1 death) |
 | dm_icd | 111 | 40.4% | 4.5% | 0.73 [0.24, 2.19] |
 | dm_hba1c | 17 | 6.2% | 0.0% | 0.45 [0.03, 7.82] (no deaths; zero-cell correction) |
 | dm_meds | 135 | 49.1% | 5.9% | 1.20 [0.42, 3.40] |
@@ -116,6 +118,9 @@ Bold: the interval excludes 1, so the two definitions disagree about the mortali
 | aki_icd vs aki_kdigo_mimiccode | 0.326 [0.221, 0.449] | 0.50 [0.13, 1.80] |
 | aki_kdigo_48h vs aki_kdigo_mimiccode | 0.614 [0.475, 0.759] | **0.51 [0.36, 0.71]** |
 | aki_kdigo_7d vs aki_kdigo_mimiccode | 0.492 [0.387, 0.611] | 0.75 [0.22, 2.59] |
+| aki_icd vs aki_rahimi2023_b3 | 0.062 [0.014, 0.126] | 7.46 [1.32, 56.25] |
+| aki_kdigo_48h vs aki_rahimi2023_b3 | 0.217 [0.118, 0.345] | 7.63 [1.36, 57.58] |
+| aki_kdigo_mimiccode vs aki_rahimi2023_b3 | 0.255 [0.139, 0.395] | 15.07 [2.98, 100.38] |
 | dm_hba1c vs dm_icd | 0.113 [0.071, 0.171] | 0.62 [0.17, 5.56] (zero-cell) |
 | dm_hba1c vs dm_meds | 0.126 [0.079, 0.176] | 0.38 [0.09, 1.91] (zero-cell) |
 | dm_icd vs dm_meds | 0.608 [0.461, 0.715] | 0.61 [0.15, 1.51] |
@@ -125,6 +130,7 @@ Bold: the interval excludes 1, so the two definitions disagree about the mortali
 - **The medication phenotype captures the most** (49% of admissions vs 40% by codes), consistent with insulin given for stress hyperglycemia; every HbA1c-defined admission is also in the medication cohort.
 - **KDIGO-48h flags 25% of demo admissions, not the 78% seen on synthetic data**, so the synthetic over-capture came from the generator's frequent, noisy creatinine, not from the rule itself.
 - **Anchoring to the ICU changes the cohort and the answer.** The published mimic-code KDIGO definition flags 44 admissions (16%) against 69 (25%) for the same creatinine rule over the whole hospital stay; 43 of its 44 are in the hospital-wide cohort. Its members are sicker (mortality 25% vs 16%), and the ratio of mortality ORs, 0.51 [0.36, 0.71], is the one demo interval that excludes 1. The cohorts are nested, which keeps the paired interval narrow; with 100 patients this shows how much the anchoring choice matters, not a real-world effect size.
+- **A prediction-study definition selects a different population.** Kamel Rahimi et al.'s Baseline 3 keeps only new AKI on ICU day 2 or 3 in first ICU stays with creatinine on days 1–3, and excludes AKI on day 1. On the demo it flags 15 admissions (5.5%), all inside the hospital-wide KDIGO cohort but overlapping the code-based cohort at Jaccard 0.06. Its members have 6.7% mortality (1 death) against 16–25% for the other AKI definitions, and every ratio of mortality ORs against it excludes 1. With one death the intervals are very wide (up to about 100), and the comparison group includes the sicker patients the definition excludes (see Limitations).
 - **Otherwise, no disagreement in the mortality association can be shown at this size.** The other AKI ORs range from 9.4 to 14.3 and the diabetes ORs from 0.45 to 1.20, and their ratio intervals include 1, some 20-fold wide.
 
 With 100 patients, cohorts are small and intervals wide; these numbers show the tool runs on real data, not how much definitions disagree in practice.
@@ -150,6 +156,7 @@ Not started. Planned on branch `cohort-diff-llm` after v0.1.0: pass rates of LLM
 | Remove the rounding from the KDIGO 0.3 mg/dL comparison in both the SQL and the oracle | The hand-picked boundary test (0.9 → 1.2 and 1.1 → 1.4 missed) | Every SQL-vs-oracle test, because both shared the bug |
 | KDIGO window 48 h → 24 h | SQL vs oracle on synthetic data, and the Hypothesis property test (shrunk to creatinine 1.0 then 2.0 mg/dL, 25 hours apart) | (nothing missed) |
 | mimic-code KDIGO without the ICU-discharge bound | SQL vs oracle on synthetic data, the hand-made ICU-window test, and the Hypothesis property test (shrunk to an ICU stay from hour 0 to 6, creatinine 0.5 then 1.0 at hour 7) | (nothing missed) |
+| Kamel Rahimi 2023 Baseline 3 with the “corrected” MDRD exponent (−0.867 instead of the printed −0.887) | The hand-made exponent test: creatinine 1.605 in a 60-year-old man is wrongly flagged as AKI | (nothing missed) |
 
 ## Discussion
 
@@ -165,6 +172,7 @@ The open demo shows the same pattern in membership on real data: AKI definitions
 - **Synthetic structure is planted.** Overlaps on synthetic data reflect the generator's assumptions, not real coding or lab practice.
 - **KDIGO is creatinine-only** (no urine output) with an in-admission baseline; many studies use pre-admission baselines.
 - **Readmission definitions are simplified**; the CMS planned-readmission algorithm is far more detailed.
+- **The downstream comparison is members vs all other admissions.** For definitions with their own eligibility rules (such as Kamel Rahimi et al.'s first-ICU-stay, day-1-AKI-excluded cohort), the non-members include patients the paper excluded, so the odds ratio is not the comparison the paper made. Restricting the comparison to each definition's eligible population is a planned extension.
 - **The odds ratio is unadjusted.** It shows how a reported association can move with the definition, not a causal effect.
 
 ## Trial and error
