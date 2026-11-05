@@ -1,0 +1,16 @@
+-- name: aki_rahimi2023_b3
+-- condition: aki
+-- description: New AKI on ICU day 2 or 3 (KDIGO creatinine: rise >= 0.3 mg/dL within 48 h, or >= 1.5 x baseline), baseline = mean creatinine 180 to 7 days before ICU admission, else MDRD back-calculation (eGFR 75); first ICU stay of adults with creatinine on each of days 1-3; admissions with AKI on day 1 excluded.
+-- reference: Kamel Rahimi A, et al. Machine learning clinical prediction models for acute kidney injury: the impact of baseline creatinine on prediction efficacy. BMC Med Inform Decis Mak. 2023;23:207. doi:10.1186/s12911-023-02306-0. Methods (Study design, Exclusion criteria), Baseline sCr 3.
+-- MDRD as printed in the paper: sCr = (75 / (186 * age^-0.203 * 0.742 if female))^-0.887.
+--   Inverting MDRD gives an exponent of -1/1.154 = -0.867; -0.887 looks like a typo, but is kept.
+-- Assumed: ICU day 1 = [intime, intime + 24 h), day 2 = [+24 h, +48 h), day 3 = [+48 h, +72 h).
+-- Assumed: age at ICU admission = anchor_age + (year(intime) - anchor_year); adults = age >= 18.
+-- Assumed: creatinine = labevents itemid 50912 with a value, matched to the stay by subject_id.
+-- Assumed: the 48 h rule compares a result with the lowest strictly earlier result since ICU intime;
+--   the 1.5 x rule compares any result on days 1-3 with the baseline (no 7-day limit).
+-- Assumed: comparisons are rounded to 6 decimals (the paper doesn't say).
+-- Assumed: the maintenance RRT exclusion is not applied (codes are in the paper's
+--   Supplementary Material 2, not yet checked).
+-- TODO(Claude Code): replace this placeholder with the query described above.
+SELECT NULL::BIGINT AS hadm_id WHERE false
