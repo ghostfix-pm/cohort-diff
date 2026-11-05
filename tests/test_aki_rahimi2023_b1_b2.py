@@ -64,3 +64,34 @@ def test_baseline_2_uses_the_day_1_minimum_after_day_1() -> None:
     aki = [(2, 2, 1.2), (2, 30, 1.75), (2, 60, 1.75)]
     tables = _tables(no_aki + aki, [(1, "M", 60), (2, "M", 60)])
     assert _run("aki_rahimi2023_b2", tables) == {2}
+
+
+def test_baseline_1_counts_a_falling_day_1_as_day_1_aki() -> None:
+    # 2.0 then 1.0 on day 1: the 2.0 is >= 1.5 x the day-1 minimum (1.0), so this is AKI
+    # already present on day 1 and the admission is excluded, even though 1.6 on day 2
+    # would be new AKI. (Requiring the high value to come after the minimum would include it.)
+    labs = [(1, 2, 2.0), (1, 12, 1.0), (1, 30, 1.6), (1, 50, 1.6)]
+    assert _run("aki_rahimi2023_b1", _tables(labs, [(1, "M", 60)])) == set()
+
+
+@pytest.mark.parametrize("name", ["aki_rahimi2023_b2", "aki_rahimi2023_b3"])
+def test_non_positive_creatinine_is_ignored(name: str) -> None:
+    # A 0.0 at hour 4 is impossible and is dropped. If it were kept, it would be the
+    # day-1 minimum (Baseline 2) or the 48 h comparison value (Baseline 3), and 1.2 on
+    # day 2 would count as AKI. Without it, 1.0 / 1.2 / 1.3 is not AKI for a man of 60.
+    labs = [(1, 2, 1.0), (1, 4, 0.0), (1, 30, 1.2), (1, 55, 1.3)]
+    assert _run(name, _tables(labs, [(1, "M", 60)])) == set()
+
+
+def test_baseline_1_ignores_a_zero_on_day_1() -> None:
+    # Kept, the 0.0 would be the day-1 minimum and make 1.0 on day 1 "AKI" (excluded).
+    # Dropped, the day-1 minimum is 1.0 and 1.6 on day 2 is new AKI.
+    labs = [(1, 2, 1.0), (1, 4, 0.0), (1, 30, 1.6), (1, 50, 1.6)]
+    assert _run("aki_rahimi2023_b1", _tables(labs, [(1, "M", 60)])) == {1}
+
+
+def test_baseline_3_ignores_a_zero_in_the_pre_icu_mean() -> None:
+    # Kept, the pre-ICU mean would be 0.5 and 1.1 on day 1 "AKI" (excluded).
+    # Dropped, the baseline is 1.0 and 1.6 on day 2 is new AKI.
+    labs = [(1, -30 * DAY, 0.0), (1, -20 * DAY, 1.0), (1, 2, 1.1), (1, 30, 1.6), (1, 50, 1.5)]
+    assert _run("aki_rahimi2023_b3", _tables(labs, [(1, "M", 60)])) == {1}
