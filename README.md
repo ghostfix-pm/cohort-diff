@@ -44,7 +44,9 @@ The demo shares the full MIMIC-IV schema, so the same definitions run on full MI
 | `aki_kdigo_48h` | AKI | Creatinine rises ≥ 0.3 mg/dL within 48 h (KDIGO 2012, criterion 1) |
 | `aki_kdigo_7d` | AKI | Creatinine ≥ 1.5 × the lowest value in the prior 7 days (KDIGO 2012, criterion 2) |
 | `aki_kdigo_mimiccode` | AKI | **Published:** KDIGO creatinine stage ≥ 1 as implemented in MIT-LCP mimic-code, ICU-anchored (results from 7 days before ICU admission to ICU discharge; ≥ lowest in 48 h + 0.3 or ≥ 1.5 × lowest in 7 days; itemid 50912, values ≤ 150, same-time results averaged, no rounding) |
-| `aki_rahimi2023_b3` | AKI | **Published:** Kamel Rahimi et al. 2023, Baseline sCr 3: new AKI on ICU day 2 or 3 (≥ 0.3 mg/dL within 48 h or ≥ 1.5 × baseline), baseline = mean creatinine 180 to 7 days before ICU admission, else MDRD back-calculation (eGFR 75, exponent −0.887 as printed); first ICU stay of adults with creatinine on days 1–3; day-1 AKI excluded. Written by Claude Code from a spec and failing tests, checked against an independent answer key |
+| `aki_rahimi2023_b3` | AKI | **Published:** Kamel Rahimi et al. 2023, Baseline sCr 3: new AKI on ICU day 2 or 3 (≥ 0.3 mg/dL within 48 h or ≥ 1.5 × baseline), baseline = mean creatinine 180 to 7 days before ICU admission, else MDRD back-calculation (eGFR 75, exponent −0.887 as printed); first ICU stay of adults with creatinine on days 1–3; day-1 AKI excluded. Written by Claude Code from a spec and failing tests, checked against an independent answer key; creatinine ≤ 0 dropped (all three baselines) |
+| `aki_rahimi2023_b1` | AKI | **Published:** Kamel Rahimi et al. 2023, Baseline sCr 1: same cohort and AKI rules, baseline = minimum creatinine in the first 24 h of ICU admission |
+| `aki_rahimi2023_b2` | AKI | **Published:** Kamel Rahimi et al. 2023, Baseline sCr 2: day-1 AKI judged against the MDRD estimate and excluded; days 2–3 judged against the day-1 minimum |
 | `dm_icd` | Diabetes | ICD-10 E10/E11/E13/E14 or ICD-9 250.* |
 | `dm_hba1c` | Diabetes | Any HbA1c ≥ 6.5% during the admission |
 | `dm_meds` | Diabetes | Any glucose-lowering medication |
@@ -103,6 +105,8 @@ Bold: the interval excludes 1, so the two definitions disagree about the mortali
 | aki_kdigo_48h | 69 | 25.1% | 15.9% | 9.58 [2.94, 31.20] |
 | aki_kdigo_7d | 53 | 19.3% | 20.8% | 14.27 [4.34, 46.97] |
 | aki_kdigo_mimiccode | 44 | 16.0% | 25.0% | 18.92 [5.69, 62.88] |
+| aki_rahimi2023_b1 | 18 | 6.5% | 11.1% | 2.35 [0.49, 11.30] (2 deaths) |
+| aki_rahimi2023_b2 | 16 | 5.8% | 12.5% | 2.70 [0.56, 13.17] (2 deaths) |
 | aki_rahimi2023_b3 | 15 | 5.5% | 6.7% | 1.26 [0.15, 10.24] (1 death) |
 | dm_icd | 111 | 40.4% | 4.5% | 0.73 [0.24, 2.19] |
 | dm_hba1c | 17 | 6.2% | 0.0% | 0.45 [0.03, 7.82] (no deaths; zero-cell correction) |
@@ -121,6 +125,11 @@ Bold: the interval excludes 1, so the two definitions disagree about the mortali
 | aki_icd vs aki_rahimi2023_b3 | 0.062 [0.014, 0.126] | 7.46 [1.32, 56.25] |
 | aki_kdigo_48h vs aki_rahimi2023_b3 | 0.217 [0.118, 0.345] | 7.63 [1.36, 57.58] |
 | aki_kdigo_mimiccode vs aki_rahimi2023_b3 | 0.255 [0.139, 0.395] | 15.07 [2.98, 100.38] |
+| aki_kdigo_mimiccode vs aki_rahimi2023_b1 | 0.292 [0.175, 0.420] | 8.06 [1.93, 66.12] |
+| aki_kdigo_mimiccode vs aki_rahimi2023_b2 | 0.224 [0.113, 0.370] | 7.00 [1.04, 89.07] |
+| aki_rahimi2023_b1 vs aki_rahimi2023_b2 | 0.619 [0.391, 0.812] | 0.87 [0.15, 5.14] |
+| aki_rahimi2023_b1 vs aki_rahimi2023_b3 | 0.650 [0.428, 0.867] | 1.87 [0.66, 6.50] |
+| aki_rahimi2023_b2 vs aki_rahimi2023_b3 | 0.824 [0.625, 1.000] | 2.15 [0.85, 7.56] |
 | dm_hba1c vs dm_icd | 0.113 [0.071, 0.171] | 0.62 [0.17, 5.56] (zero-cell) |
 | dm_hba1c vs dm_meds | 0.126 [0.079, 0.176] | 0.38 [0.09, 1.91] (zero-cell) |
 | dm_icd vs dm_meds | 0.608 [0.461, 0.715] | 0.61 [0.15, 1.51] |
@@ -131,6 +140,7 @@ Bold: the interval excludes 1, so the two definitions disagree about the mortali
 - **KDIGO-48h flags 25% of demo admissions, not the 78% seen on synthetic data**, so the synthetic over-capture came from the generator's frequent, noisy creatinine, not from the rule itself.
 - **Anchoring to the ICU changes the cohort and the answer.** The published mimic-code KDIGO definition flags 44 admissions (16%) against 69 (25%) for the same creatinine rule over the whole hospital stay; 43 of its 44 are in the hospital-wide cohort. Its members are sicker (mortality 25% vs 16%), and the ratio of mortality ORs, 0.51 [0.36, 0.71], is the one demo interval that excludes 1. The cohorts are nested, which keeps the paired interval narrow; with 100 patients this shows how much the anchoring choice matters, not a real-world effect size.
 - **A prediction-study definition selects a different population.** Kamel Rahimi et al.'s Baseline 3 keeps only new AKI on ICU day 2 or 3 in first ICU stays with creatinine on days 1–3, and excludes AKI on day 1. On the demo it flags 15 admissions (5.5%), all inside the hospital-wide KDIGO cohort but overlapping the code-based cohort at Jaccard 0.06. Its members have 6.7% mortality (1 death) against 16–25% for the other AKI definitions, and every ratio of mortality ORs against it excludes 1. With one death the intervals are very wide (up to about 100), and the comparison group includes the sicker patients the definition excludes (see Limitations).
+- **Even one paper's own baselines disagree on who has AKI.** Kamel Rahimi et al.'s three baselines flag 18, 16 and 15 demo admissions, the same order as the incidences the paper reports on full MIMIC-IV (21.0%, 18.3%, 16.7%; the paper's percentages are of its eligible cohort, the demo's of all admissions). They share only 62–82% of their combined members (Jaccard 0.62–0.82); their mortality associations cannot be told apart with 1–2 deaths each.
 - **Otherwise, no disagreement in the mortality association can be shown at this size.** The other AKI ORs range from 9.4 to 14.3 and the diabetes ORs from 0.45 to 1.20, and their ratio intervals include 1, some 20-fold wide.
 
 With 100 patients, cohorts are small and intervals wide; these numbers show the tool runs on real data, not how much definitions disagree in practice.
@@ -157,6 +167,7 @@ Not started. Planned on branch `cohort-diff-llm` after v0.1.0: pass rates of LLM
 | KDIGO window 48 h → 24 h | SQL vs oracle on synthetic data, and the Hypothesis property test (shrunk to creatinine 1.0 then 2.0 mg/dL, 25 hours apart) | (nothing missed) |
 | mimic-code KDIGO without the ICU-discharge bound | SQL vs oracle on synthetic data, the hand-made ICU-window test, and the Hypothesis property test (shrunk to an ICU stay from hour 0 to 6, creatinine 0.5 then 1.0 at hour 7) | (nothing missed) |
 | Kamel Rahimi 2023 Baseline 3 with the “corrected” MDRD exponent (−0.867 instead of the printed −0.887) | The hand-made exponent test: creatinine 1.605 in a 60-year-old man is wrongly flagged as AKI | (nothing missed) |
+| Kamel Rahimi 2023 Baseline 2 judging day 1 against the day-1 minimum instead of MDRD (so it silently becomes Baseline 1) | The hand-made MDRD test: a woman of 60 with day-1 creatinine 1.3 (above 1.5 × MDRD = 1.23) is wrongly included | (nothing missed) |
 
 ## Discussion
 
@@ -187,6 +198,8 @@ What went wrong while building this, and what changed as a result. Analysis prob
 | KDIGO-48h flagged 78% of synthetic admissions but 25% of demo admissions | A planted generator artifact (creatinine every 12 h with SD 0.3 mg/dL noise) looked like a property of the rule | Reported both; the synthetic over-capture is attributed to the generator, and synthetic overlaps are used only to validate the tool |
 | `dm_hba1c` has no deaths on the demo (17 admissions) | Its odds ratio and every ratio involving it come only from the 0.5 zero-cell correction | Flagged as zero-cell in the Results tables and not interpreted |
 | mimic-code compares `creat >= baseline + 0.3` without rounding, so a true 0.3 mg/dL rise from 1.1 to 1.4 is missed (1.1 + 0.3 = 1.4000000000000001), while 0.9 → 1.2 is caught | A faithful reproduction of a published definition must keep its choices, including ones you'd make differently | Implemented as the source states and pinned by a test that expects the miss; the built-in `aki_kdigo_48h` rounds and catches all three cases. The difference is documented in the SQL header |
+| The Baseline 1 header said a day-1 "rise" to 1.5 × the day-1 minimum excludes an admission, while another line compared results with the baseline in any order | The two readings differ for a falling day-1 series (2.0 then 1.0): on synthetic data the stricter reading would add 13–21% to the cohort | Found by Claude Code while implementing the definition. Kept the any-order reading (a high, falling day-1 creatinine is AKI already present at ICU admission, which the paper means to exclude), made it the one `Assumed:` line, and added a test |
+| Creatinine of 0 (or below) would make every later result "AKI" in Baselines 1 and 2, and distort Baseline 3's pre-ICU mean and 48 h comparison | One impossible value can move a patient in or out of a cohort | Found by Claude Code. Values ≤ 0 are dropped in all three Rahimi baselines (an `Assumed:` line, with tests for each path). The MIMIC-IV demo has none (3,003 creatinine results, minimum 0.1), so demo results are unchanged and differences from other definitions don't come from this filter |
 | A wrong time window (24 h instead of KDIGO's 48 h) still produces a plausible-looking cohort | Window edges are where cohort SQL is most often wrong, and a smaller cohort doesn't look broken | Deliberately changing the window to 24 h failed two tests: SQL vs oracle on synthetic data (admissions missing from the SQL cohort), and the Hypothesis property test, which shrank the failure to the minimal case: creatinine 1.0 then 2.0 mg/dL, 25 hours apart |
 
 ### Engineering
@@ -229,9 +242,19 @@ Development: `uv run ruff format --check src tests`, `uv run ruff check src test
 
 ## Citations
 
+**Data**
+
 - Johnson, A., Bulgarelli, L., Pollard, T., Horng, S., Celi, L. A., & Mark, R. (2023). MIMIC-IV Clinical Database Demo (version 2.2). PhysioNet. RRID:SCR_007345. https://doi.org/10.13026/dp1f-ex47
 - Johnson, A. E. W., Bulgarelli, L., Shen, L., et al. (2023). MIMIC-IV, a freely accessible electronic health record dataset. *Scientific Data*, 10, 1. https://doi.org/10.1038/s41597-022-01899-x
 - Pollard, T., Moody, B. E., Lehman, L., Gow, B., Fernandes, C., Xie, C., Johnson, A., Mark, R. G., & Heldt, T. (2026). PhysioNet as a global platform for biomedical research. *Nature Health*. https://doi.org/10.1038/s44360-026-00096-z
+
+**Published cohort definitions implemented here** (each SQL file's `reference:` line names the exact source)
+
+- `aki_kdigo_mimiccode`: MIT-LCP mimic-code, `mimic-iv/concepts/organfailure/kdigo_creatinine.sql` and `kdigo_stages.sql`, https://github.com/MIT-LCP/mimic-code (read 2026-11-04). Johnson, A. E. W., Stone, D. J., Celi, L. A., & Pollard, T. J. (2018). The MIMIC Code Repository: enabling reproducibility in critical care research. *Journal of the American Medical Informatics Association*, 25(1), 32–39. https://doi.org/10.1093/jamia/ocx084
+- `aki_rahimi2023_b1`, `_b2`, `_b3`: Kamel Rahimi, A., Ghadimi, M., van der Vegt, A. H., Canfell, O. J., Pole, J. D., Sullivan, C., & Shrapnel, S. (2023). Machine learning clinical prediction models for acute kidney injury: the impact of baseline creatinine on prediction efficacy. *BMC Medical Informatics and Decision Making*, 23, 207. https://doi.org/10.1186/s12911-023-02306-0
+
+**Clinical criteria behind the built-in definitions**
+
 - Kidney Disease: Improving Global Outcomes (KDIGO) Acute Kidney Injury Work Group (2012). KDIGO Clinical Practice Guideline for Acute Kidney Injury. *Kidney International Supplements*, 2(1), 1–138.
 
 ## License
