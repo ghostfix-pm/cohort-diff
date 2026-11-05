@@ -1,0 +1,18 @@
+Read CLAUDE.md first.
+
+Implement the cohort definition in src/cohort_diff/definitions/aki_rahimi2023_b3.sql:
+replace the placeholder query (the TODO line and the SELECT under it) with DuckDB SQL that
+follows the header exactly. Every "Assumed:" line is part of the specification. Keep the
+header unchanged.
+
+The tests in tests/test_aki_rahimi2023.py are the specification. Make them pass without
+changing that file.
+
+Then add an independent pandas implementation, aki_rahimi2023_b3(tables), to
+tests/oracles.py. Write it with plain loops over ICU stays and results, not as a
+translation of the SQL. Add it to the parametrize list of
+test_sql_matches_independent_implementation in tests/test_definitions.py.
+
+Do not change any other definition, the engine, or any other existing test.
+Use only synthetic data and the tests; do not open any MIMIC files.
+Run the four checks from CLAUDE.md and show me their output. Do not commit.
