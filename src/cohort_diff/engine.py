@@ -13,14 +13,30 @@ import pandas as pd
 
 from cohort_diff.registry import Definition
 
-TABLES = ("patients", "admissions", "labevents", "d_labitems", "diagnoses_icd", "prescriptions")
-OPTIONAL = {"prescriptions"}
+TABLES = (
+    "patients",
+    "admissions",
+    "labevents",
+    "d_labitems",
+    "diagnoses_icd",
+    "prescriptions",
+    "icustays",
+)
+# Optional tables become empty views with these columns when the data lacks them.
+OPTIONAL = {
+    "prescriptions": "NULL::BIGINT AS subject_id, NULL::BIGINT AS hadm_id, "
+    "NULL::TIMESTAMP AS starttime, NULL::TIMESTAMP AS stoptime, NULL::VARCHAR AS drug",
+    "icustays": "NULL::BIGINT AS subject_id, NULL::BIGINT AS hadm_id, NULL::BIGINT AS stay_id, "
+    "NULL::TIMESTAMP AS intime, NULL::TIMESTAMP AS outtime",
+}
 
 
 def _find(root: Path, table: str) -> Path | None:
     for candidate in (
         root / "hosp" / f"{table}.csv.gz",
         root / "hosp" / f"{table}.csv",
+        root / "icu" / f"{table}.csv.gz",
+        root / "icu" / f"{table}.csv",
         root / f"{table}.csv.gz",
         root / f"{table}.csv",
     ):
@@ -32,25 +48,25 @@ def _find(root: Path, table: str) -> Path | None:
 def connect(data: str | Path | dict[str, pd.DataFrame]) -> duckdb.DuckDBPyConnection:
     """An in-memory DuckDB connection with one view per MIMIC table.
 
-    ``data`` is a MIMIC-IV root (containing ``hosp/``), a flat CSV directory, or a
-    dict of DataFrames (used by the tests).
+    ``data`` is a MIMIC-IV root (containing ``hosp/`` and optionally ``icu/``), a flat
+    CSV directory, or a dict of DataFrames (used by the tests). Optional tables that
+    are missing become empty views, so definitions that need them return no admissions.
     """
     con = duckdb.connect()
     if isinstance(data, dict):
         for name, frame in data.items():
             con.register(f"_{name}", frame)
             con.execute(f"CREATE VIEW {name} AS SELECT * FROM _{name}")
+        for name, columns in OPTIONAL.items():
+            if name not in data:
+                con.execute(f"CREATE VIEW {name} AS SELECT {columns} WHERE false")
         return con
     root = Path(data)
     for table in TABLES:
         path = _find(root, table)
         if path is None:
             if table in OPTIONAL:
-                con.execute(
-                    f"CREATE VIEW {table} AS SELECT NULL::BIGINT AS subject_id, "
-                    "NULL::BIGINT AS hadm_id, NULL::TIMESTAMP AS starttime, "
-                    "NULL::TIMESTAMP AS stoptime, NULL::VARCHAR AS drug WHERE false"
-                )
+                con.execute(f"CREATE VIEW {table} AS SELECT {OPTIONAL[table]} WHERE false")
                 continue
             raise FileNotFoundError(f"{table}: expected {root}/hosp/{table}.csv.gz")
         # Views can't take bound parameters, so quote the path as an SQL literal.

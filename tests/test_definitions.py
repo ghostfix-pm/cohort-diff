@@ -28,6 +28,7 @@ def test_all_builtin_definitions_parse_and_run(con) -> None:  # type: ignore[no-
     [
         ("aki_kdigo_48h", oracles.aki_kdigo_48h),
         ("aki_kdigo_7d", oracles.aki_kdigo_7d),
+        ("aki_kdigo_mimiccode", oracles.aki_kdigo_mimiccode),
         ("readmit30_any", lambda t: oracles.readmit30(t, exclusions=False)),
         ("readmit30_excl", lambda t: oracles.readmit30(t, exclusions=True)),
     ],
@@ -128,3 +129,103 @@ def test_kdigo_catches_exact_threshold_rise(first: float, second: float) -> None
     )
     con = engine.connect({"labevents": labs, "d_labitems": items})
     assert engine.run(con, registry.load("aki_kdigo_48h")) == {1}
+
+
+def _labs(rows: list[tuple[int, int, float]]) -> pd.DataFrame:
+    """Creatinine results as (subject_id, hours after BASE, value)."""
+    return pd.DataFrame(
+        {
+            "labevent_id": range(len(rows)),
+            "subject_id": [s for s, _, _ in rows],
+            "hadm_id": [s for s, _, _ in rows],
+            "itemid": 50912,
+            "charttime": [BASE + timedelta(hours=h) for _, h, _ in rows],
+            "valuenum": [v for _, _, v in rows],
+        }
+    )
+
+
+ITEMS = pd.DataFrame(
+    {"itemid": [50912], "label": ["Creatinine"], "fluid": ["Blood"], "category": ["Chemistry"]}
+)
+
+
+def _stays(rows: list[tuple[int, int, int]]) -> pd.DataFrame:
+    """ICU stays as (subject_id = hadm_id, intime hours, outtime hours after BASE)."""
+    return pd.DataFrame(
+        {
+            "subject_id": [s for s, _, _ in rows],
+            "hadm_id": [s for s, _, _ in rows],
+            "stay_id": [100 + s for s, _, _ in rows],
+            "intime": [BASE + timedelta(hours=i) for _, i, _ in rows],
+            "outtime": [BASE + timedelta(hours=o) for _, _, o in rows],
+        }
+    )
+
+
+def test_mimiccode_counts_only_rises_during_the_icu_window() -> None:
+    """Both patients are in the ICU from hour 24 to 96 and have a 0.4 mg/dL rise within
+    48 h. Patient 1's rise is in the ICU; patient 2's comes after ICU discharge, so
+    mimic-code leaves it out while the hospital-wide aki_kdigo_48h counts it."""
+    tables = {
+        "labevents": _labs([(1, 30, 1.0), (1, 50, 1.4), (2, 100, 1.0), (2, 120, 1.4)]),
+        "d_labitems": ITEMS,
+        "icustays": _stays([(1, 24, 96), (2, 24, 96)]),
+    }
+    con = engine.connect(tables)
+    assert engine.run(con, registry.load("aki_kdigo_mimiccode")) == {1}
+    assert engine.run(con, registry.load("aki_kdigo_48h")) == {1, 2}
+
+
+def test_mimiccode_drops_implausible_values() -> None:
+    tables = {
+        "labevents": _labs([(1, 30, 1.0), (1, 40, 200.0)]),
+        "d_labitems": ITEMS,
+        "icustays": _stays([(1, 24, 96)]),
+    }
+    con = engine.connect(tables)
+    assert engine.run(con, registry.load("aki_kdigo_mimiccode")) == set()
+
+
+@pytest.mark.parametrize(
+    ("first", "second", "flagged"), [(0.9, 1.2, True), (0.7, 1.0, True), (1.1, 1.4, False)]
+)
+def test_mimiccode_keeps_the_source_float_behaviour(
+    first: float, second: float, flagged: bool
+) -> None:
+    """mimic-code compares creat >= baseline + 0.3 without rounding. 1.1 + 0.3 is
+    1.4000000000000001 in floating point, so a true 0.3 mg/dL rise from 1.1 is missed.
+    The faithful implementation keeps that; aki_kdigo_48h (which rounds) does not."""
+    tables = {
+        "labevents": _labs([(1, 30, first), (1, 54, second)]),
+        "d_labitems": ITEMS,
+        "icustays": _stays([(1, 24, 96)]),
+    }
+    con = engine.connect(tables)
+    assert (engine.run(con, registry.load("aki_kdigo_mimiccode")) == {1}) is flagged
+    assert engine.run(con, registry.load("aki_kdigo_48h")) == {1}
+
+
+@settings(max_examples=150, deadline=None)
+@given(
+    st.lists(
+        st.tuples(st.integers(0, 24 * 12), st.floats(0.3, 6.0, allow_nan=False)),
+        min_size=1,
+        max_size=10,
+        unique_by=lambda x: x[0],
+    ),
+    st.integers(0, 24 * 10),
+    st.integers(6, 24 * 5),
+)
+def test_mimiccode_on_random_icu_stays(
+    series: list[tuple[int, float]], intime: int, length: int
+) -> None:
+    tables = {
+        "labevents": _labs([(1, h, round(v, 2)) for h, v in series]),
+        "d_labitems": ITEMS,
+        "icustays": _stays([(1, intime, intime + length)]),
+    }
+    con = engine.connect(tables)
+    assert engine.run(con, registry.load("aki_kdigo_mimiccode")) == oracles.aki_kdigo_mimiccode(
+        tables
+    )

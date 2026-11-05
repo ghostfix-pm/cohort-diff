@@ -45,7 +45,7 @@ class SynthConfig:
 
 def generate(config: SynthConfig | None = None) -> dict[str, pd.DataFrame]:
     """Return MIMIC-IV-shaped tables: patients, admissions, labevents, d_labitems,
-    diagnoses_icd and prescriptions."""
+    diagnoses_icd, prescriptions and icustays."""
     cfg = config or SynthConfig()
     rng = np.random.default_rng(cfg.seed)
     start = pd.Timestamp(cfg.start)
@@ -178,6 +178,21 @@ def generate(config: SynthConfig | None = None) -> dict[str, pd.DataFrame]:
         rx_rows, columns=["subject_id", "hadm_id", "starttime", "stoptime", "drug"]
     )
 
+    # ICU stays, derived without random draws so every other table (and every number
+    # computed from them) is unchanged: sicker admissions (latent severity > 0) spend
+    # up to 72 hours in the ICU, starting 6 hours after hospital admission.
+    icu = admissions[admissions["latent_severity"] > 0]
+    intime = icu["admittime"] + pd.Timedelta(hours=6)
+    icustays = pd.DataFrame(
+        {
+            "subject_id": icu["subject_id"].to_numpy(),
+            "hadm_id": icu["hadm_id"].to_numpy(),
+            "stay_id": np.arange(30_000_001, 30_000_001 + len(icu)),
+            "intime": intime.to_numpy(),
+            "outtime": np.minimum(icu["dischtime"], intime + pd.Timedelta(hours=72)).to_numpy(),
+        }
+    )
+
     return {
         "patients": patients,
         "admissions": admissions.drop(columns="latent_severity"),
@@ -185,4 +200,5 @@ def generate(config: SynthConfig | None = None) -> dict[str, pd.DataFrame]:
         "d_labitems": d_labitems,
         "diagnoses_icd": diagnoses_icd,
         "prescriptions": prescriptions,
+        "icustays": icustays,
     }

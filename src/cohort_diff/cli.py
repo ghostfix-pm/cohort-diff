@@ -55,11 +55,12 @@ def _compare(args: argparse.Namespace) -> None:
 def _synth(args: argparse.Namespace) -> None:
     from cohort_diff.synth import SynthConfig, generate
 
-    hosp = Path(args.out) / "hosp"
-    hosp.mkdir(parents=True, exist_ok=True)
+    root = Path(args.out)
     for name, frame in generate(SynthConfig(n_patients=args.patients, seed=args.seed)).items():
-        frame.to_csv(hosp / f"{name}.csv.gz", index=False)
-    print(f"wrote synthetic MIMIC-shaped tables to {hosp} (synthetic data, not real patients)")
+        folder = root / ("icu" if name == "icustays" else "hosp")  # MIMIC-IV layout
+        folder.mkdir(parents=True, exist_ok=True)
+        frame.to_csv(folder / f"{name}.csv.gz", index=False)
+    print(f"wrote synthetic MIMIC-shaped tables to {root} (synthetic data, not real patients)")
 
 
 def main(argv: list[str] | None = None) -> int:

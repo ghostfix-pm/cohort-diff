@@ -51,6 +51,26 @@ def aki_kdigo_7d(tables: dict[str, pd.DataFrame]) -> set[int]:
     return out
 
 
+def aki_kdigo_mimiccode(tables: dict[str, pd.DataFrame]) -> set[int]:
+    """mimic-code's KDIGO creatinine rule, one ICU stay at a time, with plain loops."""
+    labs = tables["labevents"]
+    labs = labs[(labs["itemid"] == 50912) & labs["valuenum"].notna() & (labs["valuenum"] <= 150)]
+    out = set()
+    for stay in tables["icustays"].itertuples(index=False):
+        window = labs[
+            (labs["subject_id"] == stay.subject_id)
+            & (labs["charttime"] >= stay.intime - pd.Timedelta(days=7))
+            & (labs["charttime"] <= stay.outtime)
+        ]
+        series = window.groupby("charttime")["valuenum"].mean()
+        for t, creat in series.items():
+            low48 = [v for p, v in series.items() if t - pd.Timedelta(hours=48) <= p < t]
+            low7 = [v for p, v in series.items() if t - pd.Timedelta(days=7) <= p < t]
+            if (low48 and creat >= min(low48) + 0.3) or (low7 and creat >= 1.5 * min(low7)):
+                out.add(int(stay.hadm_id))
+    return out
+
+
 def readmit30(tables: dict[str, pd.DataFrame], exclusions: bool) -> set[int]:
     adm = tables["admissions"].sort_values(["subject_id", "admittime"])
     out = set()
