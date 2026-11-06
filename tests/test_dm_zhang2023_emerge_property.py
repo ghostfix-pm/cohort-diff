@@ -81,20 +81,16 @@ def patients(draw: st.DrawFn) -> dict[str, object]:
     hadm = st.sampled_from([h for _, h in admissions])
     code = st.sampled_from(draw(_pool(CODES)))
     drugs = draw(_pool(DRUGS))
+    # Pooled too, so that an example whose only abnormal value is exactly 6.5 or 125 is common.
+    value = st.sampled_from(draw(_pool(VALUES)))
+    lab_item = st.sampled_from(draw(_pool(LAB_ITEMS)))
+    chart_item = st.sampled_from(draw(_pool(CHART_ITEMS)))
     return {
         "admissions": admissions,
         "dx": draw(st.lists(st.tuples(hadm, code).map(lambda t: (t[0], *t[1])), max_size=6)),
         "rx": draw(st.lists(st.tuples(hadm, mixed_case(drugs), st.integers(0, 3)), max_size=6)),
-        "labs": draw(
-            st.lists(
-                st.tuples(hadm, st.sampled_from(LAB_ITEMS), st.sampled_from(VALUES)), max_size=6
-            )
-        ),
-        "charts": draw(
-            st.lists(
-                st.tuples(hadm, st.sampled_from(CHART_ITEMS), st.sampled_from(VALUES)), max_size=6
-            )
-        ),
+        "labs": draw(st.lists(st.tuples(hadm, lab_item, value), max_size=6)),
+        "charts": draw(st.lists(st.tuples(hadm, chart_item, value), max_size=6)),
     }
 
 
