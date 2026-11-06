@@ -52,6 +52,7 @@ The demo shares the full MIMIC-IV schema, so the same definitions run on full MI
 | `dm_meds` | Diabetes | Any glucose-lowering medication |
 | `dm_charlson_mimiccode` | Diabetes | **Published:** the Charlson comorbidity "diabetes" flags (without or with complications) as implemented in MIT-LCP mimic-code: ICD-9 250.0–250.9 or ICD-10 E10–E14, by the first four characters (Quan et al. 2005 codes) |
 | `dm_cheng2025` | Diabetes | **Published:** Cheng et al. 2025: type 2 diabetes = ICD-10 E11 on the admission (ICD-10 only, so ICD-9-era admissions never qualify). Only the paper's diabetes rule; its heart-failure, age and ICU criteria are not part of this definition |
+| `dm_zhang2023_emerge` | Diabetes | **Published:** Zhang & Cao 2023, the eMERGE type 2 diabetes case algorithm adapted to MIMIC-IV: no type 1 code, then one of five paths combining ICD-9 type 2 codes (no ICD-10), type 1 and type 2 drugs and their order, ≥ 2 coded admissions, and HbA1c ≥ 6.5 or glucose ≥ 125 (values ≥ 1000 removed; lab and chart glucose). Per patient: every admission of a case. Written by Claude Code from a spec and failing tests, checked against an independent answer key |
 | `readmit30_any` | Readmission | Any admission within 30 days of discharge |
 | `readmit30_excl` | Readmission | As above, excluding deaths, hospice, discharge against advice and elective readmissions (inspired by CMS HRRP, simplified) |
 
@@ -169,7 +170,7 @@ Not started. Planned on branch `cohort-diff-llm` after v0.1.0: pass rates of LLM
 
 ### Correctness
 
-34 tests pass with 99% line coverage on Python 3.11–3.13 (CI). Two deliberate breaks show what each kind of test catches:
+77 tests pass with 99% line coverage on Python 3.11–3.13 (CI). Deliberate breaks show what each kind of test catches:
 
 | Deliberate break | Caught by | Not caught by |
 | --- | --- | --- |
@@ -179,6 +180,7 @@ Not started. Planned on branch `cohort-diff-llm` after v0.1.0: pass rates of LLM
 | Kamel Rahimi 2023 Baseline 3 with the “corrected” MDRD exponent (−0.867 instead of the printed −0.887) | The hand-made exponent test: creatinine 1.605 in a 60-year-old man is wrongly flagged as AKI | (nothing missed) |
 | Kamel Rahimi 2023 Baseline 2 judging day 1 against the day-1 minimum instead of MDRD (so it silently becomes Baseline 1) | The hand-made MDRD test: a woman of 60 with day-1 creatinine 1.3 (above 1.5 × MDRD = 1.23) is wrongly included | (nothing missed) |
 | Cheng 2025 diabetes without the ICD-10 version check (`icd_code LIKE 'E11%'` only) | The hand-made code test: an E11 code labelled ICD-9 is wrongly included ({4, 5, 11} instead of {4, 5}) | (nothing missed) |
+| eMERGE without the glucose outlier filter (`< 1000` removed) | The hand-made test (lab glucose 1000 with metformin wrongly a case) and the Hypothesis property test (shrunk to one patient with code 25000, no drugs, chart glucose 1000.0) | (nothing missed) |
 
 ## Discussion
 
@@ -267,6 +269,7 @@ Development: `uv run ruff format --check src tests`, `uv run ruff check src test
 
 - `dm_charlson_mimiccode`: MIT-LCP mimic-code, `mimic-iv/concepts/comorbidity/charlson.sql`, https://github.com/MIT-LCP/mimic-code (read 2026-11-05); Johnson et al. (2018), above. Codes from Quan, H., Sundararajan, V., Halfon, P., et al. (2005). Coding algorithms for defining comorbidities in ICD-9-CM and ICD-10 administrative data. *Medical Care*, 43(11), 1130–1139.
 - `dm_cheng2025`: Cheng, J., Cheng, Q., Wu, Y., Yin, J., & He, F. (2025). Association between triglyceride-glucose-body mass index and adverse prognosis in elderly patients with severe heart failure and type 2 diabetes: a retrospective study based on the MIMIC-IV database. *Cardiovascular Diabetology*, 24, 299. https://doi.org/10.1186/s12933-025-02870-x
+- `dm_zhang2023_emerge`: Zhang, W., & Cao, T. (2023). Automated type 2 diabetes case and control identification from the MIMIC-IV database. *AMIA Joint Summits on Translational Science Proceedings*, 2023, 602–611. PMCID: PMC10283086. Algorithm: Kho, A. N., Hayes, M. G., Rasmussen-Torvik, L., et al. (2012). Use of diverse electronic medical record systems to identify genetic risk for type 2 diabetes within a genome-wide association study. *Journal of the American Medical Informatics Association*, 19(2), 212–218. https://doi.org/10.1136/amiajnl-2011-000439
 
 **Clinical criteria behind the built-in definitions**
 
