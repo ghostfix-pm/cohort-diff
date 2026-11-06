@@ -1,0 +1,34 @@
+-- name: dm_zhang2023_emerge
+-- condition: diabetes
+-- description: eMERGE type 2 diabetes case algorithm as adapted to MIMIC-IV by Zhang and Cao: patients with no type 1 diabetes code who meet one of five paths combining ICD-9 type 2 diabetes codes, type 1 and type 2 diabetes medications (and their order), at least 2 coded admissions, and an abnormal glucose or HbA1c; all admissions of case patients.
+-- reference: Zhang W, Cao T. Automated Type 2 Diabetes Case and Control Identification from the MIMIC-IV Database. AMIA Jt Summits Transl Sci Proc. 2023;2023:602-611. Methods (Data extraction and pre-processing), Figure 1A, Tables 3-5. Algorithm: eMERGE (Kho AN, et al. JAMIA 2012;19(2):212-8).
+-- As written (Table 3, ICD-9 only; the paper states ICD-10 T2DM codes "were not found in MIMIC-IV"):
+--   type 1 diagnosis = ICD-9 250.x1 or 250.x3; type 2 diagnosis = ICD-9 250.x0 or 250.x2,
+--   excluding 250.10 and 250.12. Codes are stored without dots (250.x0 = '250' + digit + '0').
+-- As written (Table 4): type 1 medication = insulin, pramlintide. Type 2 medication = acetohexamide,
+--   tolazamide, chlorpropamide, glipizide, glyburide, glimepiride, repaglinide, nateglinide,
+--   metformin, rosiglitazone, pioglitazone, troglitazone, acarbose, miglitol, sitagliptin, exenatide,
+--   alogliptin, saxagliptin, linagliptin, ertugliflozin, dapagliflozin, empagliflozin,
+--   canagliflozin, dulaglutide, semaglutide, liraglutide, lixisenatide, colesevelam, bromocriptine.
+-- As written (Table 5 and text): abnormal lab = maximum HbA1c (labevents itemid 50852) >= 6.5, or
+--   maximum glucose >= 125 mg/dL, all glucose treated as fasting: labevents itemids 50809, 50931,
+--   52569, 52027 and chartevents itemids 220621, 225664, 226537; glucose values >= 1000 removed.
+-- As written (Figure 1A), with no type 1 diagnosis, a patient is a case if:
+--   (1) type 2 diagnosis, no type 1 medication, type 2 medication;
+--   (2) type 2 diagnosis, no medication of either type, abnormal lab;
+--   (3) type 2 diagnosis, type 1 and type 2 medication, the first type 2 medication before the first
+--       type 1 medication;
+--   (4) type 2 diagnosis, type 1 medication, no type 2 medication, type 2 diagnosis on >= 2 admissions;
+--   (5) no type 2 diagnosis, type 2 medication, abnormal lab.
+-- The flowchart's patient counts do not add up (for example, 382,278 patients enter and 253,006 leave
+--   "no type 1 diagnosis"); only its structure and the final 12,735 cases are used.
+-- Assumed: the phenotype is per patient (subject_id); the cohort is every admission of a case
+--   patient (the paper's Table 7 counts all 53,038 admissions of its cases).
+-- Assumed: a medication is a prescriptions row whose drug name contains a listed name, ignoring case;
+--   its date is starttime. "Before" is strictly earlier; equal first dates are not "before".
+-- Assumed: ">= 2 diagnoses" (the paper's adaptation of eMERGE's ">= 2 physician diagnoses") counts
+--   distinct admissions with a type 2 code, since diagnoses_icd has no dates.
+-- Assumed: lab values must be present (valuenum not null); glucose and HbA1c are taken over all of a
+--   patient's records, from any admission or ICU stay.
+-- TODO(Claude Code): replace this placeholder with the query described above.
+SELECT NULL::BIGINT AS hadm_id WHERE false
