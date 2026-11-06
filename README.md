@@ -89,6 +89,10 @@ Pairwise overlap and disagreement in the mortality association (patient-level bo
 | dm_hba1c vs dm_icd | 0.099 [0.078, 0.121] | **0.52 [0.31, 0.83]** |
 | dm_hba1c vs dm_meds | 0.093 [0.072, 0.116] | **0.54 [0.32, 0.86]** |
 | dm_icd vs dm_meds | 0.811 [0.776, 0.847] | 1.03 [0.88, 1.21] |
+| dm_charlson_mimiccode vs dm_icd | 1.000 [1.000, 1.000] | 1.00 [1.00, 1.00] |
+| dm_charlson_mimiccode vs dm_cheng2025 | 0.541 [0.321, 0.716] | 0.55 [0.25, 1.58] |
+| dm_cheng2025 vs dm_hba1c | 0.055 [0.017, 0.108] | 2.95 [0.30, 14.57] |
+| dm_cheng2025 vs dm_meds | 0.327 [0.150, 0.458] | 1.11 [0.23, 3.83] |
 | readmit30_any vs readmit30_excl | 0.818 [0.771, 0.860] | not meaningful (no deaths in either cohort) |
 
 Bold: the interval excludes 1, so the two definitions disagree about the mortality association beyond sampling noise.
@@ -113,6 +117,8 @@ Bold: the interval excludes 1, so the two definitions disagree about the mortali
 | dm_icd | 111 | 40.4% | 4.5% | 0.73 [0.24, 2.19] |
 | dm_hba1c | 17 | 6.2% | 0.0% | 0.45 [0.03, 7.82] (no deaths; zero-cell correction) |
 | dm_meds | 135 | 49.1% | 5.9% | 1.20 [0.42, 3.40] |
+| dm_charlson_mimiccode | 111 | 40.4% | 4.5% | 0.73 [0.24, 2.19] |
+| dm_cheng2025 | 60 | 21.8% | 6.7% | 1.32 [0.41, 4.32] |
 | readmit30_any | 53 | 19.3% | 0.0% | not meaningful (no deaths by construction) |
 | readmit30_excl | 49 | 17.8% | 0.0% | not meaningful (no deaths by construction) |
 
@@ -138,6 +144,8 @@ Bold: the interval excludes 1, so the two definitions disagree about the mortali
 | readmit30_any vs readmit30_excl | 0.925 [0.852, 1.000] | not meaningful |
 
 - **Real definitions also select different patients.** The AKI definitions have similar prevalence (19–25%) but share only 31–56% of their combined admissions. Diabetes by HbA1c ≥ 6.5% (6% of admissions) overlaps the code and medication definitions at Jaccard 0.11–0.13.
+- **An ICD-10-only diabetes definition loses almost half the cohort to the coding switch.** Cheng et al. 2025 define type 2 diabetes as ICD-10 E11. On the demo this finds 60 of the 111 admissions with a diabetes code (Jaccard 0.54 with the Charlson definition); of the 51 it misses, 50 are coded only in ICD-9 (before October 2015) and 1 has a non-E11 ICD-10 code. The other published definition read for this project (Zhang & Cao 2023, eMERGE) uses ICD-9 only, so it would be blind to the other part of the timeline.
+- **The community definition matches the textbook one.** mimic-code's Charlson diabetes flags select exactly the same 111 admissions as the built-in `dm_icd` (Jaccard 1.0).
 - **The medication phenotype captures the most** (49% of admissions vs 40% by codes), consistent with insulin given for stress hyperglycemia; every HbA1c-defined admission is also in the medication cohort.
 - **KDIGO-48h flags 25% of demo admissions, not the 78% seen on synthetic data**, so the synthetic over-capture came from the generator's frequent, noisy creatinine, not from the rule itself.
 - **Anchoring to the ICU changes the cohort and the answer.** The published mimic-code KDIGO definition flags 44 admissions (16%) against 69 (25%) for the same creatinine rule over the whole hospital stay; 43 of its 44 are in the hospital-wide cohort. Its members are sicker (mortality 25% vs 16%), and the ratio of mortality ORs, 0.51 [0.36, 0.71], is the one demo interval that excludes 1. The cohorts are nested, which keeps the paired interval narrow; with 100 patients this shows how much the anchoring choice matters, not a real-world effect size.
@@ -203,6 +211,7 @@ What went wrong while building this, and what changed as a result. Analysis prob
 | mimic-code compares `creat >= baseline + 0.3` without rounding, so a true 0.3 mg/dL rise from 1.1 to 1.4 is missed (1.1 + 0.3 = 1.4000000000000001), while 0.9 → 1.2 is caught | A faithful reproduction of a published definition must keep its choices, including ones you'd make differently | Implemented as the source states and pinned by a test that expects the miss; the built-in `aki_kdigo_48h` rounds and catches all three cases. The difference is documented in the SQL header |
 | The Baseline 1 header said a day-1 "rise" to 1.5 × the day-1 minimum excludes an admission, while another line compared results with the baseline in any order | The two readings differ for a falling day-1 series (2.0 then 1.0): on synthetic data the stricter reading would add 13–21% to the cohort | Found by Claude Code while implementing the definition. Kept the any-order reading (a high, falling day-1 creatinine is AKI already present at ICU admission, which the paper means to exclude), made it the one `Assumed:` line, and added a test |
 | Creatinine of 0 (or below) would make every later result "AKI" in Baselines 1 and 2, and distort Baseline 3's pre-ICU mean and 48 h comparison | One impossible value can move a patient in or out of a cohort | Found by Claude Code. Values ≤ 0 are dropped in all three Rahimi baselines (an `Assumed:` line, with tests for each path). The MIMIC-IV demo has none (3,003 creatinine results, minimum 0.1), so demo results are unchanged and differences from other definitions don't come from this filter |
+| An ICD-10-only definition (Cheng 2025) and an ICD-9-only one (Zhang & Cao 2023) each describe "type 2 diabetes in MIMIC-IV" | MIMIC-IV spans the October 2015 switch from ICD-9 to ICD-10, so each rule is blind to one part of the timeline | Measured with `notes/check_diabetes_codes.py` (counts only): of 51 code-defined diabetes admissions Cheng's rule misses on the demo, 50 are coded only in ICD-9 |
 | A wrong time window (24 h instead of KDIGO's 48 h) still produces a plausible-looking cohort | Window edges are where cohort SQL is most often wrong, and a smaller cohort doesn't look broken | Deliberately changing the window to 24 h failed two tests: SQL vs oracle on synthetic data (admissions missing from the SQL cohort), and the Hypothesis property test, which shrank the failure to the minimal case: creatinine 1.0 then 2.0 mg/dL, 25 hours apart |
 
 ### Engineering
