@@ -50,6 +50,8 @@ The demo shares the full MIMIC-IV schema, so the same definitions run on full MI
 | `dm_icd` | Diabetes | ICD-10 E10/E11/E13/E14 or ICD-9 250.* |
 | `dm_hba1c` | Diabetes | Any HbA1c ≥ 6.5% during the admission |
 | `dm_meds` | Diabetes | Any glucose-lowering medication |
+| `dm_charlson_mimiccode` | Diabetes | **Published:** the Charlson comorbidity "diabetes" flags (without or with complications) as implemented in MIT-LCP mimic-code: ICD-9 250.0–250.9 or ICD-10 E10–E14, by the first four characters (Quan et al. 2005 codes) |
+| `dm_cheng2025` | Diabetes | **Published:** Cheng et al. 2025: type 2 diabetes = ICD-10 E11 on the admission (ICD-10 only, so ICD-9-era admissions never qualify). Only the paper's diabetes rule; its heart-failure, age and ICU criteria are not part of this definition |
 | `readmit30_any` | Readmission | Any admission within 30 days of discharge |
 | `readmit30_excl` | Readmission | As above, excluding deaths, hospice, discharge against advice and elective readmissions (inspired by CMS HRRP, simplified) |
 
@@ -168,6 +170,7 @@ Not started. Planned on branch `cohort-diff-llm` after v0.1.0: pass rates of LLM
 | mimic-code KDIGO without the ICU-discharge bound | SQL vs oracle on synthetic data, the hand-made ICU-window test, and the Hypothesis property test (shrunk to an ICU stay from hour 0 to 6, creatinine 0.5 then 1.0 at hour 7) | (nothing missed) |
 | Kamel Rahimi 2023 Baseline 3 with the “corrected” MDRD exponent (−0.867 instead of the printed −0.887) | The hand-made exponent test: creatinine 1.605 in a 60-year-old man is wrongly flagged as AKI | (nothing missed) |
 | Kamel Rahimi 2023 Baseline 2 judging day 1 against the day-1 minimum instead of MDRD (so it silently becomes Baseline 1) | The hand-made MDRD test: a woman of 60 with day-1 creatinine 1.3 (above 1.5 × MDRD = 1.23) is wrongly included | (nothing missed) |
+| Cheng 2025 diabetes without the ICD-10 version check (`icd_code LIKE 'E11%'` only) | The hand-made code test: an E11 code labelled ICD-9 is wrongly included ({4, 5, 11} instead of {4, 5}) | (nothing missed) |
 
 ## Discussion
 
@@ -252,6 +255,9 @@ Development: `uv run ruff format --check src tests`, `uv run ruff check src test
 
 - `aki_kdigo_mimiccode`: MIT-LCP mimic-code, `mimic-iv/concepts/organfailure/kdigo_creatinine.sql` and `kdigo_stages.sql`, https://github.com/MIT-LCP/mimic-code (read 2026-11-04). Johnson, A. E. W., Stone, D. J., Celi, L. A., & Pollard, T. J. (2018). The MIMIC Code Repository: enabling reproducibility in critical care research. *Journal of the American Medical Informatics Association*, 25(1), 32–39. https://doi.org/10.1093/jamia/ocx084
 - `aki_rahimi2023_b1`, `_b2`, `_b3`: Kamel Rahimi, A., Ghadimi, M., van der Vegt, A. H., Canfell, O. J., Pole, J. D., Sullivan, C., & Shrapnel, S. (2023). Machine learning clinical prediction models for acute kidney injury: the impact of baseline creatinine on prediction efficacy. *BMC Medical Informatics and Decision Making*, 23, 207. https://doi.org/10.1186/s12911-023-02306-0
+
+- `dm_charlson_mimiccode`: MIT-LCP mimic-code, `mimic-iv/concepts/comorbidity/charlson.sql`, https://github.com/MIT-LCP/mimic-code (read 2026-11-05); Johnson et al. (2018), above. Codes from Quan, H., Sundararajan, V., Halfon, P., et al. (2005). Coding algorithms for defining comorbidities in ICD-9-CM and ICD-10 administrative data. *Medical Care*, 43(11), 1130–1139.
+- `dm_cheng2025`: Cheng, J., Cheng, Q., Wu, Y., Yin, J., & He, F. (2025). Association between triglyceride-glucose-body mass index and adverse prognosis in elderly patients with severe heart failure and type 2 diabetes: a retrospective study based on the MIMIC-IV database. *Cardiovascular Diabetology*, 24, 299. https://doi.org/10.1186/s12933-025-02870-x
 
 **Clinical criteria behind the built-in definitions**
 
