@@ -21,6 +21,7 @@ TABLES = (
     "diagnoses_icd",
     "prescriptions",
     "icustays",
+    "chartevents",
 )
 # Optional tables become empty views with these columns when the data lacks them.
 OPTIONAL = {
@@ -28,6 +29,8 @@ OPTIONAL = {
     "NULL::TIMESTAMP AS starttime, NULL::TIMESTAMP AS stoptime, NULL::VARCHAR AS drug",
     "icustays": "NULL::BIGINT AS subject_id, NULL::BIGINT AS hadm_id, NULL::BIGINT AS stay_id, "
     "NULL::TIMESTAMP AS intime, NULL::TIMESTAMP AS outtime",
+    "chartevents": "NULL::BIGINT AS subject_id, NULL::BIGINT AS hadm_id, NULL::BIGINT AS stay_id, "
+    "NULL::TIMESTAMP AS charttime, NULL::BIGINT AS itemid, NULL::DOUBLE AS valuenum",
 }
 
 

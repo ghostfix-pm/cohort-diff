@@ -195,3 +195,104 @@ def readmit30(tables: dict[str, pd.DataFrame], exclusions: bool) -> set[int]:
                 continue
             out.add(int(cur.hadm_id))
     return out
+
+
+EMERGE_T1_DRUGS = ("insulin", "pramlintide")
+EMERGE_T2_DRUGS = (
+    "acetohexamide", "tolazamide", "chlorpropamide", "glipizide", "glyburide", "glimepiride",
+    "repaglinide", "nateglinide", "metformin", "rosiglitazone", "pioglitazone", "troglitazone",
+    "acarbose", "miglitol", "sitagliptin", "exenatide", "alogliptin", "saxagliptin",
+    "linagliptin", "ertugliflozin", "dapagliflozin", "empagliflozin", "canagliflozin",
+    "dulaglutide", "semaglutide", "liraglutide", "lixisenatide", "colesevelam", "bromocriptine",
+)  # fmt: skip
+EMERGE_GLUCOSE_LAB = (50809, 50931, 52569, 52027)
+EMERGE_GLUCOSE_CHART = (220621, 225664, 226537)
+
+
+def _rows(tables: dict[str, pd.DataFrame], name: str) -> list[Any]:
+    """The rows of a table, or none if the data lacks it."""
+    frame = tables.get(name)
+    return [] if frame is None else list(frame.itertuples(index=False))
+
+
+def _emerge_icd9_type(code: str) -> int | None:
+    """1 or 2 for an ICD-9 250.xy code in Table 3, else None."""
+    if len(code) != 5 or not code.startswith("250") or code[3] not in "0123456789":
+        return None
+    if code[4] in ("1", "3"):
+        return 1
+    if code[4] in ("0", "2") and code not in ("25010", "25012"):
+        return 2
+    return None
+
+
+def dm_zhang2023_emerge(tables: dict[str, pd.DataFrame]) -> set[int]:
+    """eMERGE T2DM (Zhang and Cao 2023, Figure 1A), one patient at a time, with plain loops."""
+    admissions_of: dict[int, list[int]] = {}
+    for adm in _rows(tables, "admissions"):
+        admissions_of.setdefault(int(adm.subject_id), []).append(int(adm.hadm_id))
+
+    t1_dx: set[int] = set()
+    t2_dx_admissions: dict[int, set[int]] = {}
+    for dx in _rows(tables, "diagnoses_icd"):
+        if dx.icd_version != 9 or not isinstance(dx.icd_code, str):
+            continue
+        kind = _emerge_icd9_type(dx.icd_code)
+        if kind == 1:
+            t1_dx.add(int(dx.subject_id))
+        elif kind == 2:
+            t2_dx_admissions.setdefault(int(dx.subject_id), set()).add(int(dx.hadm_id))
+
+    # Every start time of each medication type, per patient (NaT kept: it still counts as a drug).
+    t1_starts: dict[int, list[Any]] = {}
+    t2_starts: dict[int, list[Any]] = {}
+    for rx in _rows(tables, "prescriptions"):
+        if not isinstance(rx.drug, str):
+            continue
+        name = rx.drug.lower()
+        if any(d in name for d in EMERGE_T1_DRUGS):
+            t1_starts.setdefault(int(rx.subject_id), []).append(rx.starttime)
+        if any(d in name for d in EMERGE_T2_DRUGS):
+            t2_starts.setdefault(int(rx.subject_id), []).append(rx.starttime)
+
+    abnormal: set[int] = set()
+    for lab in _rows(tables, "labevents"):
+        if pd.isna(lab.valuenum):
+            continue
+        if (lab.itemid == 50852 and lab.valuenum >= 6.5) or (
+            lab.itemid in EMERGE_GLUCOSE_LAB and 125 <= lab.valuenum < 1000
+        ):
+            abnormal.add(int(lab.subject_id))
+    for chart in _rows(tables, "chartevents"):
+        if (
+            not pd.isna(chart.valuenum)
+            and chart.itemid in EMERGE_GLUCOSE_CHART
+            and 125 <= chart.valuenum < 1000
+        ):
+            abnormal.add(int(chart.subject_id))
+
+    def first(times: list[Any]) -> Any:
+        known = [t for t in times if not pd.isna(t)]
+        return min(known) if known else None
+
+    out: set[int] = set()
+    for subject, hadms in admissions_of.items():
+        if subject in t1_dx:
+            continue
+        t2_dx = subject in t2_dx_admissions
+        t1_med = subject in t1_starts
+        t2_med = subject in t2_starts
+        lab_ok = subject in abnormal
+        if t2_dx:
+            if not t1_med:
+                case = t2_med or lab_ok  # path 1, or path 2 (no medication of either type)
+            elif t2_med:
+                first_t1, first_t2 = first(t1_starts[subject]), first(t2_starts[subject])
+                case = first_t1 is not None and first_t2 is not None and first_t2 < first_t1
+            else:
+                case = len(t2_dx_admissions[subject]) >= 2  # path 4
+        else:
+            case = t2_med and lab_ok  # path 5
+        if case:
+            out.update(hadms)
+    return out

@@ -1,0 +1,26 @@
+Read CLAUDE.md first.
+
+Implement src/cohort_diff/definitions/dm_zhang2023_emerge.sql: replace the placeholder (the TODO
+line and the SELECT under it) with DuckDB SQL that follows the header exactly. Every "As written"
+and "Assumed:" line is part of the specification. Keep the header unchanged.
+
+tests/test_dm_zhang2023_emerge.py is the specification. Make it pass without changing it.
+
+Then:
+1. Add an independent pandas implementation dm_zhang2023_emerge(tables) to tests/oracles.py,
+   written with plain loops over patients, not as a translation of the SQL. Tables may lack
+   "chartevents" (the synthetic data has none): treat a missing table as empty.
+2. Add it to the parametrize list of test_sql_matches_independent_implementation in
+   tests/test_definitions.py.
+3. The synthetic data only exercises path 5 of Figure 1A (it has ICD-10 codes and no glucose),
+   so add a Hypothesis property test in a new file, tests/test_dm_zhang2023_emerge_property.py,
+   that generates small random sets of patients covering every path: ICD-9 type 1 and type 2
+   codes (including 25010 and 25012), ICD-10 E11 codes, type 1 and type 2 drug names in mixed
+   case with random start dates (including equal dates), and HbA1c and glucose values around
+   the thresholds and at or above 1000, from both labevents and chartevents. Assert SQL == oracle.
+   Use the _tables helper from tests/test_dm_zhang2023_emerge.py.
+
+Do not change any other definition, the engine, or any other existing test.
+Use only synthetic data and the tests; do not open any MIMIC files.
+If the header leaves a choice open, list it at the end instead of guessing silently.
+Run the five checks from CLAUDE.md and show me their output. Do not commit.
