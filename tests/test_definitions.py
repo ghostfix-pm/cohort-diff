@@ -32,6 +32,7 @@ def test_all_builtin_definitions_parse_and_run(con) -> None:  # type: ignore[no-
         ("aki_rahimi2023_b1", oracles.aki_rahimi2023_b1),
         ("aki_rahimi2023_b2", oracles.aki_rahimi2023_b2),
         ("aki_rahimi2023_b3", oracles.aki_rahimi2023_b3),
+        ("dm_zhang2023_emerge", oracles.dm_zhang2023_emerge),
         ("readmit30_any", lambda t: oracles.readmit30(t, exclusions=False)),
         ("readmit30_excl", lambda t: oracles.readmit30(t, exclusions=True)),
     ],
