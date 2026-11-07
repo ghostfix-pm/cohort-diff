@@ -25,5 +25,7 @@ icd9_only, icd10_not_e11 = con.execute(
     """
 ).fetchall()[0]
 print(f"Charlson diabetes admissions: {len(charlson)}, also in Cheng: {len(charlson & cheng)}")
-print(f"missed by Cheng: {len(missed)} = {icd9_only} coded in ICD-9 only"
-      f" + {icd10_not_e11} with ICD-10 codes but no E11 (e.g. type 1, E10)")
+print(
+    f"missed by Cheng: {len(missed)} = {icd9_only} coded in ICD-9 only"
+    f" + {icd10_not_e11} with ICD-10 codes but no E11 (e.g. type 1, E10)"
+)
